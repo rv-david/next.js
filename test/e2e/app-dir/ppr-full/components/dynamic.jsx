@@ -3,7 +3,7 @@ import { headers } from 'next/headers'
 
 export const Dynamic = ({ pathname, fallback }) => {
   if (fallback) {
-    return <div>Loading...</div>
+    return <div>Dynamic Loading...</div>
   }
 
   const messages = []
@@ -28,7 +28,7 @@ export const Dynamic = ({ pathname, fallback }) => {
             <dt>
               Header: <code>{name}</code>
             </dt>
-            <dd>{value ?? 'null'}</dd>
+            <dd>{value ?? `MISSING:${name.toUpperCase()}`}</dd>
           </React.Fragment>
         ))}
       </dl>

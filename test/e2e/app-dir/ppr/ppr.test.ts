@@ -1,12 +1,14 @@
 import { createNextDescribe } from 'e2e-utils'
 import { check } from 'next-test-utils'
 
+import { DELAY_HEADER } from './components/dynamic'
+
 createNextDescribe(
   'ppr',
   {
     files: __dirname,
   },
-  ({ next, isNextDev, isNextStart }) => {
+  ({ next, isNextDev, isNextStart, isNextDeploy }) => {
     it('should indicate the feature is experimental', async () => {
       await check(() => {
         return next.cliOutput.includes('Experiments (use at your own risk)') &&
@@ -15,6 +17,7 @@ createNextDescribe(
           : 'fail'
       }, 'success')
     })
+
     if (isNextStart) {
       describe('build output', () => {
         it('correctly marks pages as being partially prerendered in the build output', () => {
@@ -25,6 +28,7 @@ createNextDescribe(
         })
       })
     }
+
     describe.each([
       { pathname: '/suspense/node' },
       { pathname: '/suspense/node/nested/1' },
@@ -73,16 +77,55 @@ createNextDescribe(
 
       if (!isNextDev) {
         it('should cache the static part', async () => {
+          const delay = 3000
+
+          let start = Date.now()
+
           // First, render the page to populate the cache.
-          let res = await next.fetch(pathname)
+          let res = await next.fetch(pathname, {
+            headers: { [DELAY_HEADER]: '3000' },
+          })
           expect(res.status).toBe(200)
-          expect(res.headers.get('x-nextjs-postponed')).toBe('1')
+
+          if (!isNextDeploy) {
+            expect(res.headers.get('x-nextjs-postponed')).toBe('1')
+          }
+
+          // Ensure we read the response body.
+          await res.text()
+
+          let end = Date.now()
+
+          expect(end - start).toBeGreaterThanOrEqual(delay)
 
           // Then, render the page again.
-          res = await next.fetch(pathname)
+          res = await next.fetch(pathname, {
+            headers: { [DELAY_HEADER]: '3000' },
+          })
           expect(res.status).toBe(200)
-          expect(res.headers.get('x-nextjs-cache')).toBe('HIT')
-          expect(res.headers.get('x-nextjs-postponed')).toBe('1')
+
+          if (!isNextDeploy) {
+            expect(res.headers.get('x-nextjs-postponed')).toBe('1')
+          }
+
+          let streamFirstChunk = 0
+          let streamEnd = 0
+
+          await new Promise<void>((resolve, reject) => {
+            res.body.on('data', () => {
+              if (!streamFirstChunk) {
+                streamFirstChunk = Date.now()
+              }
+            })
+            res.body.on('end', () => {
+              streamEnd = Date.now()
+              resolve()
+            })
+            res.body.on('error', reject)
+          })
+
+          expect(streamFirstChunk - end).toBeLessThan(delay)
+          expect(streamEnd - end).toBeGreaterThanOrEqual(delay)
         })
       }
     })

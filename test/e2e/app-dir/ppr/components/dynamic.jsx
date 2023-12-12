@@ -1,28 +1,30 @@
 import React, { use } from 'react'
-import { cookies } from 'next/headers'
-import { Delay, Login } from './state'
+import { cookies, headers } from 'next/headers'
+import { Login } from './state'
+
+export const DELAY_HEADER = 'x-delay'
 
 export function Dynamic({ fallback }) {
   const dynamic = fallback !== true
-
-  let signedIn
-  let active
-  if (dynamic) {
-    signedIn = cookies().has('session') ? true : false
-    active = cookies().has('delay') ? true : false
-    if (active) {
-      use(new Promise((resolve) => setTimeout(resolve, 1000)))
-    }
-  }
 
   if (!dynamic) {
     return (
       <div id="dynamic-fallback">
         <pre>Loading...</pre>
         <Login fallback />
-        <Delay fallback />
       </div>
     )
+  }
+
+  const jar = cookies()
+  const signedIn = jar.has('session') ? true : false
+
+  const req = { headers: headers() }
+  const delay = req.headers.has(DELAY_HEADER)
+    ? parseInt(req.headers.get(DELAY_HEADER))
+    : 0
+  if (delay) {
+    use(new Promise((resolve) => setTimeout(resolve, delay)))
   }
 
   return (
@@ -31,7 +33,6 @@ export function Dynamic({ fallback }) {
         {signedIn ? 'Signed In' : 'Not Signed In'}
       </pre>
       <Login signedIn={signedIn} />
-      <Delay active={active} />
     </div>
   )
 }
