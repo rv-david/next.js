@@ -3,6 +3,31 @@ import { check } from 'next-test-utils'
 
 import { DELAY_HEADER } from './components/dynamic'
 
+async function measure(stream: NodeJS.ReadableStream) {
+  let streamFirstChunk = 0
+  let streamEnd = 0
+
+  await new Promise<void>((resolve, reject) => {
+    stream.on('data', () => {
+      if (!streamFirstChunk) {
+        streamFirstChunk = Date.now()
+      }
+    })
+
+    stream.on('end', () => {
+      streamEnd = Date.now()
+      resolve()
+    })
+
+    stream.on('error', reject)
+  })
+
+  return {
+    streamFirstChunk,
+    streamEnd,
+  }
+}
+
 createNextDescribe(
   'ppr',
   {
@@ -83,49 +108,26 @@ createNextDescribe(
 
           // First, render the page to populate the cache.
           let res = await next.fetch(pathname, {
-            headers: { [DELAY_HEADER]: '3000' },
+            headers: { [DELAY_HEADER]: delay.toString() },
           })
           expect(res.status).toBe(200)
 
-          if (!isNextDeploy) {
-            expect(res.headers.get('x-nextjs-postponed')).toBe('1')
-          }
+          const first = await measure(res.body)
 
-          // Ensure we read the response body.
-          await res.text()
+          expect(first.streamEnd - start).toBeGreaterThanOrEqual(delay)
 
-          let end = Date.now()
-
-          expect(end - start).toBeGreaterThanOrEqual(delay)
+          start = Date.now()
 
           // Then, render the page again.
           res = await next.fetch(pathname, {
-            headers: { [DELAY_HEADER]: '3000' },
+            headers: { [DELAY_HEADER]: delay.toString() },
           })
           expect(res.status).toBe(200)
 
-          if (!isNextDeploy) {
-            expect(res.headers.get('x-nextjs-postponed')).toBe('1')
-          }
+          const second = await measure(res.body)
 
-          let streamFirstChunk = 0
-          let streamEnd = 0
-
-          await new Promise<void>((resolve, reject) => {
-            res.body.on('data', () => {
-              if (!streamFirstChunk) {
-                streamFirstChunk = Date.now()
-              }
-            })
-            res.body.on('end', () => {
-              streamEnd = Date.now()
-              resolve()
-            })
-            res.body.on('error', reject)
-          })
-
-          expect(streamFirstChunk - end).toBeLessThan(delay)
-          expect(streamEnd - end).toBeGreaterThanOrEqual(delay)
+          expect(second.streamFirstChunk - start).toBeLessThan(delay)
+          expect(second.streamEnd - start).toBeGreaterThanOrEqual(delay)
         })
       }
     })

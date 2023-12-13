@@ -2800,13 +2800,8 @@ export default abstract class Server<ServerOptions extends Options = Options> {
         res.statusCode = cachedData.status
       }
 
-      // Mark that the request did postpone if this is a data request or we're
-      // testing. It's used to verify that we're actually serving a postponed
-      // request so we can trust the cache headers.
-      if (
-        cachedData.postponed &&
-        (isRSCRequest || process.env.__NEXT_TEST_MODE)
-      ) {
+      // Mark that the request did postpone if this is a data request.
+      if (cachedData.postponed && isRSCRequest) {
         res.setHeader(NEXT_DID_POSTPONE_HEADER, '1')
       }
 
