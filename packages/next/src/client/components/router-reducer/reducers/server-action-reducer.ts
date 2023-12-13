@@ -220,7 +220,8 @@ export function serverActionReducer(
           // TODO-APP: remove ''
           [''],
           currentTree,
-          treePatch
+          treePatch,
+          true
         )
 
         if (newTree === null) {

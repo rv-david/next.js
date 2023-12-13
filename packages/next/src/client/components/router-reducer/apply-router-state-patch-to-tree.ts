@@ -10,14 +10,18 @@ import { matchSegment } from '../match-segments'
  */
 function applyPatch(
   initialTree: FlightRouterState,
-  patchTree: FlightRouterState
+  patchTree: FlightRouterState,
+  applyPatchToDefaultSegment: boolean = false
 ): FlightRouterState {
   const [initialSegment, initialParallelRoutes] = initialTree
   const [patchSegment, patchParallelRoutes] = patchTree
 
-  // if the applied patch segment is __DEFAULT__ then we can ignore it and return the initial tree
+  // if the applied patch segment is __DEFAULT__ then it can be ignored in favor of the initial tree
   // this is because the __DEFAULT__ segment is used as a placeholder on navigation
+  // however, there are scenarios where this behavior is undesired, such as when a server action is invoked
+  // on a default segment. `applyPatchToDefaultSegment` is used to control this behavior
   if (
+    !applyPatchToDefaultSegment &&
     patchSegment === DEFAULT_SEGMENT_KEY &&
     initialSegment !== DEFAULT_SEGMENT_KEY
   ) {
@@ -32,7 +36,8 @@ function applyPatch(
       if (isInPatchTreeParallelRoutes) {
         newParallelRoutes[key] = applyPatch(
           initialParallelRoutes[key],
-          patchParallelRoutes[key]
+          patchParallelRoutes[key],
+          applyPatchToDefaultSegment
         )
       } else {
         newParallelRoutes[key] = initialParallelRoutes[key]
@@ -73,13 +78,18 @@ function applyPatch(
 export function applyRouterStatePatchToTree(
   flightSegmentPath: FlightSegmentPath,
   flightRouterState: FlightRouterState,
-  treePatch: FlightRouterState
+  treePatch: FlightRouterState,
+  applyPatchDefaultSegment: boolean = false
 ): FlightRouterState | null {
   const [segment, parallelRoutes, , , isRootLayout] = flightRouterState
 
   // Root refresh
   if (flightSegmentPath.length === 1) {
-    const tree: FlightRouterState = applyPatch(flightRouterState, treePatch)
+    const tree: FlightRouterState = applyPatch(
+      flightRouterState,
+      treePatch,
+      applyPatchDefaultSegment
+    )
 
     return tree
   }
@@ -95,12 +105,17 @@ export function applyRouterStatePatchToTree(
 
   let parallelRoutePatch
   if (lastSegment) {
-    parallelRoutePatch = applyPatch(parallelRoutes[parallelRouteKey], treePatch)
+    parallelRoutePatch = applyPatch(
+      parallelRoutes[parallelRouteKey],
+      treePatch,
+      applyPatchDefaultSegment
+    )
   } else {
     parallelRoutePatch = applyRouterStatePatchToTree(
       flightSegmentPath.slice(2),
       parallelRoutes[parallelRouteKey],
-      treePatch
+      treePatch,
+      applyPatchDefaultSegment
     )
 
     if (parallelRoutePatch === null) {
